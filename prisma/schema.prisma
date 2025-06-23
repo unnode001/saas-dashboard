@@ -1,0 +1,76 @@
+// This is your Prisma schema file for the SaaS Dashboard project.
+// It defines the data models, relations, and database-level constraints.
+// To learn more, visit the docs: https://pris.ly/d/prisma-schema
+
+// 1. Generator Block: Specifies that Prisma Client should be generated for JavaScript/TypeScript.
+generator client {
+  provider = "prisma-client-js"
+}
+
+// 2. Datasource Block: Configures the database connection.
+//    - provider: "sqlite" is great for local development. For production, you might switch to "mysql" or "postgresql".
+//    - url:      Loads the database connection string from the .env file for security.
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// --- Data Models ---
+
+// User Model: Stores user authentication and profile information.
+model User {
+  id             String    @id @default(cuid()) // Unique user identifier (CUID)
+  email          String    @unique // User's email, must be unique across the platform
+  hashedPassword String    // User's password, stored securely as a hash
+
+  // --- Relations ---
+  sessions Session[] // A user can have multiple active sessions (e.g., on different devices)
+  websites Website[] // A user can own and manage multiple websites
+}
+
+// Session Model: Managed by Lucia Auth to handle user login sessions.
+model Session {
+  id        String   @id // Unique session identifier
+  expiresAt DateTime // The timestamp when the session expires
+  userId    String   // Foreign key linking to the User model
+
+  // --- Relations ---
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade) // Links session to a user. If the user is deleted, their sessions are also deleted.
+
+  // --- Indexes ---
+  @@index([userId]) // Index on userId for faster session lookups
+}
+
+// Website Model: Stores information about the websites a user wants to track.
+model Website {
+  id     String @id @default(cuid()) // Unique website identifier (CUID)
+  name   String // A user-friendly name for the website (e.g., "My Personal Blog")
+  domain String @unique // The domain of the website, must be unique across the platform
+  userId String // Foreign key linking to the User model
+
+  // --- Relations ---
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade) // Links website to a user. If the user is deleted, their websites are also deleted.
+  events Event[]  // A website can have many tracking events
+
+  // --- Indexes ---
+  @@index([userId]) // Index on userId for faster lookups of a user's websites
+}
+
+// Event Model: Records every tracked event, primarily pageviews for the MVP.
+model Event {
+  id        String   @id @default(cuid()) // Unique event identifier (CUID)
+  type      String   // Type of the event, e.g., "pageview"
+  pathname  String   // The path of the page that was viewed, e.g., "/about"
+  referrer  String   // The referrer domain, e.g., "google.com" or "direct"
+  createdAt DateTime @default(now())      // Timestamp when the event was recorded
+  websiteId String   // Foreign key linking to the Website model
+
+  // --- Relations ---
+  website Website @relation(fields: [websiteId], references: [id], onDelete: Cascade) // Links event to a website. If a website is deleted, all its events are also deleted.
+
+  // --- Indexes ---
+  // This composite index is CRITICAL for performance.
+  // It allows the database to efficiently query events for a specific website within a specific time range,
+  // which is the most common query pattern for the analytics dashboard.
+  @@index([websiteId, createdAt])
+}
