@@ -12,16 +12,16 @@ generator client {
 //    - url:      Loads the database connection string from the .env file for security.
 datasource db {
   provider = "sqlite"
-  url      = env("DATABASE_URL")
+  url      = "file:./dev.db"
 }
 
 // --- Data Models ---
 
 // User Model: Stores user authentication and profile information.
 model User {
-  id             String    @id @default(cuid()) // Unique user identifier (CUID)
-  email          String    @unique // User's email, must be unique across the platform
-  hashedPassword String    // User's password, stored securely as a hash
+  id       String    @id @unique // Unique user identifier (CUID)
+  email    String    @unique // User's email, must be unique across the platform
+  password String    // User's password, stored securely as a hash
 
   // --- Relations ---
   sessions Session[] // A user can have multiple active sessions (e.g., on different devices)
@@ -30,12 +30,10 @@ model User {
 
 // Session Model: Managed by Lucia Auth to handle user login sessions.
 model Session {
-  id        String   @id // Unique session identifier
+  id        String   @id @unique // Unique session identifier
   expiresAt DateTime // The timestamp when the session expires
   userId    String   // Foreign key linking to the User model
-
-  // --- Relations ---
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade) // Links session to a user. If the user is deleted, their sessions are also deleted.
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade) // Links session to a user. If the user is deleted, their sessions are also deleted.
 
   // --- Indexes ---
   @@index([userId]) // Index on userId for faster session lookups
@@ -43,14 +41,14 @@ model Session {
 
 // Website Model: Stores information about the websites a user wants to track.
 model Website {
-  id     String @id @default(cuid()) // Unique website identifier (CUID)
-  name   String // A user-friendly name for the website (e.g., "My Personal Blog")
-  domain String @unique // The domain of the website, must be unique across the platform
-  userId String // Foreign key linking to the User model
-
-  // --- Relations ---
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade) // Links website to a user. If the user is deleted, their websites are also deleted.
-  events Event[]  // A website can have many tracking events
+  id        String   @id @default(cuid()) // Unique website identifier (CUID)
+  name      String // A user-friendly name for the website (e.g., "My Personal Blog")
+  domain    String   @unique // The domain of the website, must be unique across the platform
+  userId    String // Foreign key linking to the User model
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade) // Links website to a user. If the user is deleted, their websites are also deleted.
+  events    Event[]  // A website can have many tracking events
+  createdAt DateTime @default(now())      // Timestamp when the website was created
+  updatedAt DateTime @updatedAt // Timestamp when the website was last updated
 
   // --- Indexes ---
   @@index([userId]) // Index on userId for faster lookups of a user's websites
@@ -62,11 +60,10 @@ model Event {
   type      String   // Type of the event, e.g., "pageview"
   pathname  String   // The path of the page that was viewed, e.g., "/about"
   referrer  String   // The referrer domain, e.g., "google.com" or "direct"
-  createdAt DateTime @default(now())      // Timestamp when the event was recorded
+  sessionId String   // Unique session identifier to track user sessions
   websiteId String   // Foreign key linking to the Website model
-
-  // --- Relations ---
-  website Website @relation(fields: [websiteId], references: [id], onDelete: Cascade) // Links event to a website. If a website is deleted, all its events are also deleted.
+  website   Website  @relation(fields: [websiteId], references: [id], onDelete: Cascade) // Links event to a website. If a website is deleted, all its events are also deleted.
+  createdAt DateTime @default(now())      // Timestamp when the event was recorded
 
   // --- Indexes ---
   // This composite index is CRITICAL for performance.
